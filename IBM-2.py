@@ -50,7 +50,7 @@ class Alignment(object):
 
         # counts
         self.count_e = {}
-        self.count_ef = {}
+        self.count_fe = {}
         self.count_jilm = {}
         self.count_ilm = {}
         
@@ -106,13 +106,11 @@ class Alignment(object):
                 alignments.append(0)
             self.alignments_f.append(alignments)
         
-    #def ComputDelta(self):
 
-    #def ComputCounts(self):
     #-----------------------------------------------PakageFunction-------------------------------------------#   
-    def GetT(self,idx_e,idx_f):         #t(e|f)
-        if (idx_e,idx_f) in self.t:
-            return self.t[(idx_e,idx_f)]
+    def GetT(self,idx_f,idx_e):         #t(f|e)
+        if (idx_f,idx_e) in self.t:
+            return self.t[(idx_f,idx_e)]
         else:
             return self.infinitesimal
     def GetQ_IBM2(self,j,i,l,m):             #q(j|i,l,m)
@@ -123,9 +121,9 @@ class Alignment(object):
     def GetQ_IBM1(self,j,i,l,m):             #q(j|i,l,m)
             return 1.0/(l+1)
 
-    def GetCount_ef(self,idx_e,idx_f):
-        if (idx_e,idx_f) in self.count_ef:
-            return self.count_ef[(idx_e,idx_f)]
+    def GetCount_fe(self,idx_f,idx_e):
+        if (idx_f,idx_e) in self.count_fe:
+            return self.count_fe[(idx_f,idx_e)]
         else:
             return self.infinitesimal
     def GetCount_e(self,idx_e):
@@ -148,34 +146,25 @@ class Alignment(object):
             return self.delta[(s,i,j)]
         else:
             return self.infinitesimal
-    #-----------------------------------------------ComputeFunction-------------------------------------------#  
+    #-----------------------------------------------ComputeFunction-------------------------------------------#
     def ComputeT(self):
-        '''
-        for idx_e in range(0,len(self.words_e)):
-            for idx_f in range(0,len(self.words_f)):
-                self.t[(idx_e,idx_f)]=self.GetCount_ef(idx_e,idx_f)/self.GetCount_e(idx_e)*1.0+0.0001    #   Count_e == 0?
-        '''
         self.t = {}
-        for (idx_e,idx_f),val in self.count_ef.iteritems():
-            #print "idx_e:"+str(idx_e)+" idx_f"+str(idx_f)
-            self.t[(idx_e,idx_f)] = self.GetCount_ef(idx_e,idx_f)*1.0/self.GetCount_e(idx_e)
-            #print "EF:"+str(self.GetCount_ef(idx_e,idx_f))+" E:"+str(self.GetCount_e(idx_e))
+        for (idx_f,idx_e),val in self.count_fe.iteritems():
+            self.t[(idx_f,idx_e)] = self.GetCount_fe(idx_f,idx_e)/self.GetCount_e(idx_e)
+            
     def ComputeQ_IBM2(self):
         for l in self.lenval_e:
             for m in self.lenval_f:
-                for j in range(0,l):
-                    for i in range(0,m):
-                        if self.GetCount_ilm(i,l,m)==0:
+                for i in range(0,m):
+                    normalisation = self.GetCount_ilm(i,l,m)
+                    if normalisation == 0:
+                        for j in range(0,l):
                             self.q[(j,i,l,m)] = self.infinitesimal
                             print "Issue: self.GetCount_ilm(i,l,m)==0"
-                        else:
-                            self.q[(j,i,l,m)]=self.GetCount_jilm(j,i,l,m)*1.0/self.GetCount_ilm(i,l,m)   # if no?
+                    else:
+                        for j in range(0,l):
+                            self.q[(j,i,l,m)]=self.GetCount_jilm(j,i,l,m)*1.0/normalisation   # if no?
         
-    def InitialiseT(self):
-        for idx_e in range(0,len(self.words_e)):
-            for idx_f in range(0,len(self.words_f)):
-                self.t[(idx_e,idx_f)]=1/len(self.words_e)*1.0
-                print "T- e:"+str(idx_e)+" f:"+str(idx_f)
     def ComputeDelta_IBM1(self):
         for s in range(0,self.sum_s):
             if s%1000 == 0:
@@ -185,14 +174,14 @@ class Alignment(object):
             for i in range(0,m):
                 normalization = 0
                 for j in range(0,l):
-                    normalization = normalization + self.GetT(self.sentences_e[s][j],self.sentences_f[s][i])
+                    normalization = normalization + self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])
                 for j in range(0,l):
-                    self.delta[(s,i,j)] = self.GetT(self.sentences_e[s][j],self.sentences_f[s][i])/normalization
+                    self.delta[(s,i,j)] = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])/normalization
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" Delta:"+str(self.delta[(s,i,j)])
 
     def UpdateCounts_IBM1(self):
         self.count_e = {}
-        self.count_ef = {} # define a new counts in every iteration
+        self.count_fe = {} # define a new counts in every iteration
         for s in range(0,self.sum_s):
             if s%1000 == 0:
                 print "M-step- Updating Counts - Sentence:"+str(s)
@@ -201,13 +190,13 @@ class Alignment(object):
             for i in range(0,m):
                 for j in range(0,l):
                     # Count C(e,f)
-                    if (self.sentences_e[s][j],self.sentences_f[s][i]) in self.count_ef:
-                        self.count_ef[(self.sentences_e[s][j],self.sentences_f[s][i])] = \
-                            self.count_ef[(self.sentences_e[s][j],self.sentences_f[s][i])]+self.GetDelta(s,i,j)
+                    if (self.sentences_f[s][i],self.sentences_e[s][j]) in self.count_fe:
+                        self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])] = \
+                            self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])]+self.GetDelta(s,i,j)
                     else:
-                        self.count_ef[(self.sentences_e[s][j],self.sentences_f[s][i])] = self.GetDelta(s,i,j)
+                        self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])] = self.GetDelta(s,i,j)
                     # Count C(e)
-                    if self.sentences_e[s][j] in  self.count_e:
+                    if self.sentences_e[s][j] in self.count_e:
                         self.count_e[self.sentences_e[s][j]] = self.count_e[self.sentences_e[s][j]] + self.GetDelta(s,i,j)
                     else:
                         self.count_e[self.sentences_e[s][j]] = self.GetDelta(s,i,j)
@@ -221,14 +210,14 @@ class Alignment(object):
             for i in range(0,m):
                 normalization = 0
                 for j in range(0,l):
-                    normalization = normalization + self.GetT(self.sentences_e[s][j],self.sentences_f[s][i])*self.GetQ_IBM2(j,i,l,m)
+                    normalization = normalization + self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.GetQ_IBM2(j,i,l,m)
                 for j in range(0,l):
-                    self.delta[(s,i,j)] = self.GetT(self.sentences_e[s][j],self.sentences_f[s][i])*self.GetQ_IBM2(j,i,l,m)/normalization
+                    self.delta[(s,i,j)] = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.GetQ_IBM2(j,i,l,m)/normalization
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" Delta:"+str(self.delta[(s,i,j)])
 
     def UpdateCounts_IBM2(self):
         self.count_e = {}
-        self.count_ef = {} # define a new counts in every iteration
+        self.count_fe = {} # define a new counts in every iteration
         self.count_jilm = {}
         self.count_ilm = {}
         for s in range(0,self.sum_s):
@@ -239,13 +228,13 @@ class Alignment(object):
             for i in range(0,m):
                 for j in range(0,l):
                     # Count C(e,f)
-                    if (self.sentences_e[s][j],self.sentences_f[s][i]) in self.count_ef:
-                        self.count_ef[(self.sentences_e[s][j],self.sentences_f[s][i])] = \
-                            self.count_ef[(self.sentences_e[s][j],self.sentences_f[s][i])]+self.GetDelta(s,i,j)
+                    if (self.sentences_f[s][i],self.sentences_e[s][j]) in self.count_fe:
+                        self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])] = \
+                            self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])]+self.GetDelta(s,i,j)
                     else:
-                        self.count_ef[(self.sentences_e[s][j],self.sentences_f[s][i])] = self.GetDelta(s,i,j)
+                        self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])] = self.GetDelta(s,i,j)
                     # Count C(e)
-                    if self.sentences_e[s][j] in  self.count_e:
+                    if self.sentences_e[s][j] in self.count_e:
                         self.count_e[self.sentences_e[s][j]] = self.count_e[self.sentences_e[s][j]] + self.GetDelta(s,i,j)
                     else:
                         self.count_e[self.sentences_e[s][j]] = self.GetDelta(s,i,j)
@@ -274,7 +263,7 @@ class Alignment(object):
                 maximum = 0
                 for j in range(0,l):    # starts from 1
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM1(j,i,l,m))
-                    tmp = self.GetT(self.sentences_e[s][j],self.sentences_f[s][i])*self.GetQ_IBM1(j,i,l,m)
+                    tmp = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.GetQ_IBM1(j,i,l,m)
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
                     if j==0:
                         maximum = tmp               
@@ -301,7 +290,7 @@ class Alignment(object):
                 maximum = 0
                 for j in range(0,l):    # starts from 1
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM2(j,i,l,m))
-                    tmp = self.GetT(self.sentences_e[s][j],self.sentences_f[s][i])*self.GetQ_IBM2(j,i,l,m)
+                    tmp = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.GetQ_IBM2(j,i,l,m)
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
                     if j==0:
                         maximum = tmp               
@@ -370,6 +359,7 @@ class Alignment(object):
             self.ComputeT()
              # compute q  j i l m
             if it >=5:
+                print "M-step-ComputeQ"
                 self.ComputeQ_IBM2()
         #E-step
             #if it == 0:
@@ -422,7 +412,7 @@ class Alignment(object):
                     continue
                 for j in range(0,l):    # starts from 1
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM2(j,i,l,m))
-                    tmp = self.GetT(self.sentences_dev_e[s][j],self.sentences_dev_f[s][i])#*self.GetQ_IBM1(j,i,l,m)
+                    tmp = self.GetT(self.sentences_dev_f[s][i],self.sentences_dev_e[s][j])#*self.GetQ_IBM1(j,i,l,m)
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
                     if j==0:
                         maximum = tmp               
@@ -469,8 +459,6 @@ class Alignment(object):
         # get alignments for dev
         self.alignments_dev = []
         for s in range(0,len(self.sentences_dev_e)):
-            if s%1000 == 0:
-                print "DEV- Alignments - Sentence:"+str(s)
             m = self.lengths_dev_f[s]
             l = self.lengths_dev_e[s]
             self.alignments_dev.append([])
@@ -482,7 +470,7 @@ class Alignment(object):
                     continue
                 for j in range(0,l):    # starts from 1
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM2(j,i,l,m))
-                    tmp = self.GetT(self.sentences_dev_e[s][j],self.sentences_dev_f[s][i])*self.GetQ_IBM1(j,i,l,m)
+                    tmp = self.GetT(self.sentences_dev_f[s][i],self.sentences_dev_e[s][j])*self.GetQ_IBM1(j,i,l,m)
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
                     if j==0:
                         maximum = tmp               
@@ -490,6 +478,7 @@ class Alignment(object):
                     if tmp  >= maximum:
                         self.alignments_dev[s][i] = j
                         maximum = tmp
+        print "DEV- Alignments - Sentence:"+str(s)
         fout = open(self.url_dev_out,'w')
         for s in range(0,len(self.sentences_dev_e)):
             for i in range(0,len(self.alignments_dev[s])):
