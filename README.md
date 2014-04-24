@@ -1,3 +1,23 @@
+---------------------------------------------------------
+1.更改 defaultdict, 4个count dictionaries直接加delta
+
+2.利用 lambda: 修改defaultdict的默认值, 2个probability dictionaries （t，q）初始值即为 infinitesmol
+
+3.更改 xrange, 提升循环效率
+
+4.修改初始化 normalisation
+
+---------------------------------------------------------
+1. Null alginment probability
+
+
+
+2. Dirichlet Prior
+
+
+
+---------------------------------------------------------
+
 add Null alignment probability and Dirichlet prior
 
 
