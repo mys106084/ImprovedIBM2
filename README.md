@@ -9,7 +9,8 @@
 
 ---------------------------------------------------------
 1. Null alginment probability
-
+(1) 设置 null aglignment probability (在delta 计算过程中完全替代q, 仅保留t)
+(2) 同时修改evaluation function
 
 
 2. Dirichlet Prior
