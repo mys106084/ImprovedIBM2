@@ -194,7 +194,7 @@ class Alignment(object):
         self.count_fe.clear() # define a new counts in every iteration
         for s in xrange(0,self.sum_s):
             if s%1000 == 0:
-                print "E-step- Updating Counts - Sentence:"+str(s)
+                print "E-step- ComputeDelta - Sentence:"+str(s)
             m = self.lengths_f[s]
             l = self.lengths_e[s]
             for i in xrange(0,m):
@@ -204,13 +204,20 @@ class Alignment(object):
                 for j in xrange(0,l):
                     prob.append(self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.normprob)
                     normalization += prob[j]
-                prob.append(self.GetT(self.sentences_f[s][i],-1)*self.nullprob )
+                prob.append(self.GetT(self.sentences_f[s][i],-1)*self.nullprob)
                 normalization += prob[l]   
                 for j in xrange(0,l):
                     self.delta[(s,i,j)] = prob[j]/normalization
                 #nullAlignment
-                self.delta[(s,i,-1)] = prob[l]*self.nullprob/normalization
+                self.delta[(s,i,-1)] = prob[l]/normalization
                 #print self.delta[(s,i,-1)]
+                
+        for s in xrange(0,self.sum_s):
+            if s%1000 == 0:
+                print "E-step- Updating Counts - Sentence:"+str(s)
+            m = self.lengths_f[s]
+            l = self.lengths_e[s]
+            for i in xrange(0,m):
                 #------------------------UpdateCounts-------------------------------------
                 for j in xrange(0,l):
                     # Count C(e,f)
@@ -227,6 +234,7 @@ class Alignment(object):
         self.count_fe.clear() # define a new counts in every iteration
         self.count_jilm.clear()
         self.count_ilm.clear()
+        #------------------------ComputeDelta-------------------------------------
         for s in xrange(0,self.sum_s):
             if s%1000 == 0:
                 print "E-step - ComputeDelta - Sentence:"+str(s)
@@ -234,7 +242,6 @@ class Alignment(object):
             l = len(self.sentences_e[s])
             fout.write( "Sentence: "+str(s) + " Alignement-------" + '\n')
             for i in xrange(0,m):
-                #------------------------ComputeDelta-------------------------------------
                 normalization = 0
                 p_pos = 0
                 p_max = 0
@@ -264,7 +271,13 @@ class Alignment(object):
                     self.delta[(s,i,j)] = prob[j]/normalization
                 #nullAlignment
                 self.delta[(s,i,-1)] = prob[l]/normalization
-                #---------------------------------------UpdateCounts---------------------------------------
+         #---------------------------------------UpdateCounts---------------------------------------       
+        for s in xrange(0,self.sum_s):
+            if s%1000 == 0:
+                print "E-step- Updating Counts - Sentence:"+str(s)
+            m = self.lengths_f[s]
+            l = self.lengths_e[s]
+            for i in xrange(0,m):
                 for j in xrange(0,l):
                     # Count C(e,f)
                     self.count_fe[(self.sentences_f[s][i],self.sentences_e[s][j])] += self.GetDelta(s,i,j)
@@ -294,7 +307,7 @@ class Alignment(object):
                 maximum = 0
                 for j in xrange(0,l):    # starts from 1
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM1(j,i,l,m))
-                    tmp = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.GetQ_IBM1(j,i,l,m)
+                    tmp = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])#*self.GetQ_IBM1(j,i,l,m)
                     #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
                     if j==0:
                         maximum = tmp               
@@ -302,7 +315,7 @@ class Alignment(object):
                     if tmp  >= maximum:
                         self.alignments[s][i] = j
                         maximum = tmp
-                tmp = self.GetT(self.sentences_f[s][i],-1)*self.GetQ_IBM2(-1,i,l,m) # nullAlignment
+                tmp = self.GetT(self.sentences_f[s][i],-1)#*self.GetQ_IBM1(-1,i,l,m) # nullAlignment
                 if tmp >= maximum:
                     self.alignments[s][i] = -1
         fout = open(self.url_a,'w')
@@ -370,9 +383,9 @@ class Alignment(object):
         #E-step
             print "E-step-UpdateCounts."
             if self.iter >=5:
-                self.UpdateCounts_IBM1()
-            else:
                 self.UpdateCounts_IBM2()
+            else:
+                self.UpdateCounts_IBM1()
         #M-step
              # compute t
             print "M-step-ComputeT."
@@ -426,13 +439,13 @@ class Alignment(object):
                     if self.sentences_dev_e[s][j] == -2: #filter the English words which are not in wordmap
                         continue                    
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM2(j,i,l,m))
-                    tmp = self.GetT(self.sentences_dev_f[s][i],self.sentences_dev_e[s][j])#*self.GetQ_IBM1(j,i,l,m)
+                    tmp = self.GetT(self.sentences_dev_f[s][i],self.sentences_dev_e[s][j])*self.normprob#*self.GetQ_IBM1(j,i,l,m)
                     if tmp  >= maximum:
                         self.alignments_dev[s][i] = j
                         maximum = tmp   
                 # nullAlignment
                 # Compare to "null alignemnt probablity"
-                tmp = self.GetT(self.sentences_dev_f[s][i],-1)*self.GetQ_IBM2(-1,i,l,m) # nullAlignment
+                tmp = self.GetT(self.sentences_dev_f[s][i],-1)*self.nullprob # nullAlignment
                 #print tmp
                 if tmp >= maximum:
                     self.alignments_dev[s][i] = -1
@@ -494,18 +507,17 @@ class Alignment(object):
                     self.alignments_dev[s][i] = -1
                     continue
                 #print 'TMP prob:'
-                for j in xrange(0,l):    # starts from 1
-                    
+                for j in xrange(0,l):    # starts from 1                    
                     if self.sentences_dev_e[s][j] == -2: #filter the English words which are not in wordmap
                         continue                    
                     #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM2(j,i,l,m))
-                    tmp = self.GetT(self.sentences_dev_f[s][i],self.sentences_dev_e[s][j])*self.GetQ_IBM1(j,i,l,m)
+                    tmp = self.GetT(self.sentences_dev_f[s][i],self.sentences_dev_e[s][j])*self.GetQ_IBM2(j,i,l,m)*self.normprob
                     if tmp  >= maximum:
                         self.alignments_dev[s][i] = j
                         maximum = tmp   
                 # nullAlignment
                 # Compare to "null alignemnt probablity"
-                tmp = self.GetT(self.sentences_dev_f[s][i],-1)*self.GetQ_IBM2(-1,i,l,m) # nullAlignment
+                tmp = self.GetT(self.sentences_dev_f[s][i],-1)*self.nullprob # nullAlignment
                 #print tmp
                 if tmp >= maximum:
                     self.alignments_dev[s][i] = -1
