@@ -3,10 +3,10 @@ import scipy
 import collections
 import cPickle
 from time import time
-t = time()
+
 
 class Alignment(object):
-    def __init__(self):
+    def __init__(self, nullprob = 0.1, dirT = 0.001, dirQ = 0.1): # (1) nullAlignment (2) dirT (3) dirQ
         #
         self.url_e = 'corpus.en'
         self.url_f = 'corpus.es'
@@ -21,10 +21,10 @@ class Alignment(object):
         self.infinitesimal = 0.0000001
         
         # Parameters tuning
-        self.nullprob = 0.1
+        self.nullprob = nullprob
         self.normprob = 1 - self.nullprob
-        self.dir = 0.0
-
+        self.dirT = dirT
+        self.dirQ = dirQ
 
         # initialization for the docs
         self.wordmap_e = {}
@@ -67,6 +67,8 @@ class Alignment(object):
         
         self.q = collections.defaultdict(lambda:self.infinitesimal) #distortion probability
         self.t = collections.defaultdict(lambda:self.infinitesimal) #translation probability
+        
+        print "MODEL:"+ 'NullAligenment-' +str(self.nullprob)+ '  dirT-' +str(self.dirT)+ '  dirQ-' +str(self.dirQ)
 
 
     def Inputcorpus(self):
@@ -168,16 +170,23 @@ class Alignment(object):
     def ComputeT(self):
         #self.t = {}
         for (idx_f,idx_e),val in self.count_fe.iteritems():
-            self.t[(idx_f,idx_e)] = self.GetCount_fe(idx_f,idx_e)/self.GetCount_e(idx_e)
-            
+            self.t[(idx_f,idx_e)] = ( self.GetCount_fe(idx_f,idx_e) + self.dirT ) / ( self.GetCount_e(idx_e) + self.dirT*len(self.wordmap_f) )  # dirT
+            #self.t[(idx_f,idx_e)] = self.GetCount_fe(idx_f,idx_e)*1.0/self.GetCount_e(idx_e)
             
     def ComputeQ_IBM2(self):
         for l in self.lenval_e:
             for m in self.lenval_f:
                 for i in xrange(0,m):
                     #for j in xrange(0,l):
-                    #    self.q[(j,i,l,m)]=self.GetCount_jilm(j,i,l,m)*1.0/self.GetCount_ilm(i,l,m)   # if no?
-                    #'''
+                    #    self.q[(j,i,l,m)] = ( self.GetCount_jilm(j,i,l,m) + self.dirQ )*1.0/ ( self.GetCount_ilm(i,l,m) + self.dirQ*m )   # dirQ
+                    normalisation = self.GetCount_ilm(i,l,m)
+                    if normalisation == 0:
+                        for j in xrange(-1,l):
+                            self.q[(j,i,l,m)] = 1.0/m
+                    else:
+                        for j in xrange(-1,l):
+                            self.q[(j,i,l,m)] = ( self.GetCount_jilm(j,i,l,m) + self.dirQ )*1.0/ ( normalisation + self.dirQ*m )    # if no?
+                    '''
                     normalisation = self.GetCount_ilm(i,l,m)
                     if normalisation == 0:
                         for j in xrange(-1,l):
@@ -186,7 +195,7 @@ class Alignment(object):
                     else:
                         for j in xrange(-1,l):
                             self.q[(j,i,l,m)]=self.GetCount_jilm(j,i,l,m)*1.0/normalisation   # if no?
-                    #'''
+                    '''
         
                 
     def UpdateCounts_IBM1(self):
@@ -294,71 +303,11 @@ class Alignment(object):
                 self.count_ilm[(i,l,m)] += self.GetDelta(s,i,-1)
         fout.close()
     #-----------------------------------------------Decoding-------------------------------------------# 
-    def GetAlignments_IBM1(self):
-        self.alignments = []
-        for s in xrange(0,self.sum_s):
-            if s%1000 == 0:
-                print "Decoding- Alignments - Sentence:"+str(s)
-            m = self.lengths_f[s]
-            l = self.lengths_e[s]
-            self.alignments.append([])
-            for i in xrange(0,m):
-                self.alignments[s].append(0)
-                maximum = 0
-                for j in xrange(0,l):    # starts from 1
-                    #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM1(j,i,l,m))
-                    tmp = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])#*self.GetQ_IBM1(j,i,l,m)
-                    #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
-                    if j==0:
-                        maximum = tmp               
-                    #print "tmp:"+str(tmp)+" pre:"+str(pre)
-                    if tmp  >= maximum:
-                        self.alignments[s][i] = j
-                        maximum = tmp
-                tmp = self.GetT(self.sentences_f[s][i],-1)#*self.GetQ_IBM1(-1,i,l,m) # nullAlignment
-                if tmp >= maximum:
-                    self.alignments[s][i] = -1
-        fout = open(self.url_a,'w')
-        for s in xrange(0,self.sum_s):
-            fout.write(str(self.alignments[s]))
-            fout.write('\n')
-        fout.close()
-
-    def GetAlignments_IBM2(self):
-        self.alignments = []
-        for s in xrange(0,self.sum_s):
-            if s%1000 == 0:
-                print "Decoding- Alignments - Sentence:"+str(s)
-            m = self.lengths_f[s]
-            l = self.lengths_e[s]
-            self.alignments.append([])
-            for i in xrange(0,m):
-                self.alignments[s].append(0)
-                maximum = 0
-                for j in xrange(0,l):    # starts from 1
-                    #tmp = scipy.log(self.GetT(self.sentences_e[s][j],self.sentences_f[s][i]))+scipy.log(self.GetQ_IBM2(j,i,l,m))
-                    tmp = self.GetT(self.sentences_f[s][i],self.sentences_e[s][j])*self.GetQ_IBM2(j,i,l,m)
-                    #print "s:"+str(s)+" i:"+str(i)+" j:"+str(j)+" logPro:"+str(tmp)
-                    if j==0:
-                        maximum = tmp               
-                    #print "tmp:"+str(tmp)+" pre:"+str(pre)
-                    if tmp >= maximum:
-                        self.alignments[s][i] = j
-                        maximum = tmp
-                tmp = self.GetT(self.sentences_f[s][i],-1)*self.GetQ_IBM2(-1,i,l,m) # nullAlignment
-                if tmp >= maximum:
-                    self.alignments[s][i] = -1
-        fout = open(self.url_a,'w')
-        for s in xrange(0,self.sum_s):
-            fout.write(str(self.alignments[s]))
-            fout.write('\n')
-        fout.close()        
-    
     # initialise delta
     def EM_IBM1(self):
         
         # Initial E-step
-        self.InitT()
+        #self.InitT()
                               
         for self.iter in xrange(0,self.iterations):
             print "EM processing in iteration:"+str(self.iter)
@@ -542,14 +491,18 @@ class Alignment(object):
         fout.close()
         fout_align.close()
 
-myAlignment = Alignment()
-myAlignment.Inputcorpus()
-myAlignment.EM_IBM2()
+def main(arg):
+    t = time()
+    myAlignment = Alignment(float(arg[0]),float(arg[1]),float(arg[2]))
+    myAlignment.Inputcorpus()
+    myAlignment.EM_IBM2()
+    myAlignment.Dev_IBM2()
+    print "total run time:"
+    print time()-t
 
-#myAlignment.Print()
-#myAlignment.GetAlignments_IBM1()
-myAlignment.Dev_IBM2()
-print "total run time:"
-print time()-t
+if __name__ == "__main__":
+    main(sys.argv[1:]) # 0.08 0.001 0.1
+    
+
 
 
